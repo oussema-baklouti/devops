@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+     environment {
+registry = "mohamedchouchane/devops"
+registryCredential = 'dockerhub'
+dockerImage = '' }
+
+    stages {
+
+
+        stage("mvn clean") {
+            steps {
+                script {
+             dir("TimesheetProject"){
+
+                    bat "mvn clean"
+                }}
+            }
+        }
+
+
+        stage("Test stage") {
+            steps {
+                script {
+                       dir("TimesheetProject"){
+
+                    bat "mvn test"
+                }}
+            }
+        }
+    stage("mvn package ") {
+            steps {
+                script {
+                       dir("TimesheetProject"){
+
+                    bat "mvn  package "
+                }}
+            }
+        }
+
+  	    stage("Sonar ") {
+            steps {
+                script {
+   dir("TimesheetProject"){
+                    bat "mvn sonar:sonar "
+                     }
+                }
+                }
+            }
+
+        stage("Deployment stage") {
+            steps {
+                script {
+                       dir("TimesheetProject"){
+                 pom = readMavenPom file: "pom.xml";
+				 bat "mvn deploy:deploy-file -DgroupId=${pom.groupId} -DartifactId=${pom.artifactId} -Dversion=${pom.version}  -DgeneratePom=true -Dpackaging=${pom.packaging}  -DrepositoryId=deploymentRepo -Durl=http://localhost:8081/repository/maven-releases/ -Dfile=target/${pom.artifactId}-${pom.version}.${pom.packaging}"
+                }}
+            }
+        }
+        stage('Build image with Docker') {
+steps {
+   dir("TimesheetProject"){
+script {
+   dockerImage = docker.build registry + ":$BUILD_NUMBER"}}}}
+stage('Push image with Docker') {
+steps {
+   dir("TimesheetProject"){
+script {
+docker.withRegistry( '', registryCredential ) {
+ bat "docker push $registry:$BUILD_NUMBER"
+
+
+}}}}}
+
+stage ('Remove unused docker imager'){
+    steps {
+        bat "docker rmi $registry:$BUILD_NUMBER"
+    }
+}
+    }
+
+
+
+      post {
+
+         success {
+         mail bcc: '', body: '''success Jenkins pipline .
+             Jenkins.''', cc: '', from: '', replyTo: '', subject: 'Build succed', to: 'mohamed.chouchane@esprit.tn'
+         }
+         failure {
+             mail bcc: '', body: '''failed Jenkins pipline .
+             Jenkins.''', cc: '', from: '', replyTo: '', subject: 'Build failed', to: 'mohamed.chouchane@esprit.tn'
+         }
+             always {
+            cleanWs()
+        }
+      }
+
+}
